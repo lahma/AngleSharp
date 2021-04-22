@@ -50,6 +50,13 @@ namespace Ganss.XSS
     /// </example>
     public class HtmlSanitizer : IHtmlSanitizer
     {
+        private static readonly IConfiguration defaultConfiguration = Configuration.Default.WithCss(new CssParserOptions
+        {
+            IsIncludingUnknownDeclarations = true,
+            IsIncludingUnknownRules = true,
+            IsToleratingInvalidSelectors = true,
+        });
+        
         /// <summary>
         /// Initializes a new instance of the <see cref="HtmlSanitizer"/> class.
         /// </summary>
@@ -638,12 +645,7 @@ namespace Ganss.XSS
         /// <returns>An instance of <see cref="HtmlParser"/>.</returns>
         private static HtmlParser CreateParser()
         {
-            return new HtmlParser(new HtmlParserOptions(), BrowsingContext.New(new Configuration().WithCss(new CssParserOptions
-            {
-                IsIncludingUnknownDeclarations = true,
-                IsIncludingUnknownRules = true,
-                IsToleratingInvalidSelectors = true,
-            })));
+            return new HtmlParser(new HtmlParserOptions(), BrowsingContext.New(defaultConfiguration));
         }
 
         /// <summary>
@@ -653,7 +655,7 @@ namespace Ganss.XSS
         /// <returns><c>true</c> if any comments were removed; otherwise, <c>false</c>.</returns>
         private void RemoveComments(INode context)
         {
-            foreach (var comment in GetAllNodes(context).OfType<IComment>().ToList())
+            foreach (var comment in GetAllNodes(context).OfType<IComment>())
             {
                 var e = new RemovingCommentEventArgs { Comment = comment };
                 OnRemovingComment(e);
@@ -665,7 +667,7 @@ namespace Ganss.XSS
         private void DoSanitize(IHtmlDocument dom, IParentNode context, string baseUrl = "")
         {
             // remove disallowed tags
-            foreach (var tag in context.QuerySelectorAll("*").Where(t => !IsAllowedTag(t)).ToList())
+            foreach (var tag in context.QuerySelectorAll("*").Where(t => !IsAllowedTag(t)))
             {
                 RemoveTag(tag, RemoveReason.NotAllowedTag);
             }
@@ -673,16 +675,16 @@ namespace Ganss.XSS
             SanitizeStyleSheets(dom, baseUrl);
 
             // cleanup attributes
-            foreach (var tag in context.QuerySelectorAll("*").ToList())
+            foreach (var tag in context.QuerySelectorAll("*"))
             {
                 // remove disallowed attributes
-                foreach (var attribute in tag.Attributes.Where(a => !IsAllowedAttribute(a)).ToList())
+                foreach (var attribute in tag.Attributes.Where(a => !IsAllowedAttribute(a)))
                 {
                     RemoveAttribute(tag, attribute, RemoveReason.NotAllowedAttribute);
                 }
 
                 // sanitize URLs in URL-marked attributes
-                foreach (var attribute in tag.Attributes.Where(IsUriAttribute).ToList())
+                foreach (var attribute in tag.Attributes.Where(IsUriAttribute))
                 {
                     var url = SanitizeUrl(attribute.Value, baseUrl);
                     if (url == null)
@@ -696,7 +698,7 @@ namespace Ganss.XSS
                 SanitizeStyle(tag, baseUrl);
 
                 // sanitize the value of the attributes
-                foreach (var attribute in tag.Attributes.ToList())
+                foreach (var attribute in tag.Attributes)
                 {
                     // The '& Javascript include' is a possible method to execute Javascript and can lead to XSS.
                     // (see https://www.owasp.org/index.php/XSS_Filter_Evasion_Cheat_Sheet#.26_JavaScript_includes)
@@ -773,7 +775,7 @@ namespace Ganss.XSS
                 }
                 else if (rule is ICssKeyframesRule keyFramesRule)
                 {
-                    foreach (var childRule in keyFramesRule.Rules.OfType<ICssKeyframeRule>().ToList())
+                    foreach (var childRule in keyFramesRule.Rules.OfType<ICssKeyframeRule>())
                     {
                         if (!SanitizeStyleRule(childRule, styleTag, baseUrl) && RemoveAtRule(styleTag, childRule))
                             keyFramesRule.Remove(childRule.KeyText);
@@ -798,7 +800,7 @@ namespace Ganss.XSS
             if (PostProcessNode != null)
             {
                 dom.Normalize();
-                var nodes = GetAllNodes(context).ToList();
+                var nodes = GetAllNodes(context);
 
                 foreach (var node in nodes)
                 {
